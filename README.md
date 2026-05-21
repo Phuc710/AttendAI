@@ -1,60 +1,58 @@
-# Face Attendance System
+# AttendAI - Hệ Thống Điểm Danh Khuôn Mặt (Face Attendance System)
 
-Hệ thống điểm danh khuôn mặt nhiều người đồng thời — không train model.
+Hệ thống nhận diện khuôn mặt tự động, siêu nhanh và nhẹ gọn dành cho quản lý nhân sự/sinh viên. Áp dụng công nghệ Zero-shot Face Recognition với InsightFace, không yêu cầu train lại model khi thêm người mới.
 
-## Cài Đặt
+<div align="center">
+  <img src="img_demo/kiosk.png" alt="Kiosk View" width="48%">
+  <img src="img_demo/admin_dashboard.png" alt="Admin Dashboard" width="48%">
+</div>
+
+## ✨ Tính Năng Nổi Bật
+
+* **Nhận Diện Realtime (Kiosk):** Xử lý mượt mà luồng camera thời gian thực qua WebSocket, vẽ bounding box siêu nhẹ trực tiếp trên trình duyệt.
+* **Zero-shot Enrollment:** Đăng ký nhân sự chỉ cần một tấm ảnh tĩnh duy nhất (Face Embedding), nhận diện ngay lập tức mà không phải huấn luyện (train) lại AI.
+* **Giao Diện Quản Trị Premium:** Dashboard cực kỳ chuyên nghiệp với biểu đồ thống kê, Responsive 100% cực nét trên màn hình Mobile.
+* **Quản Lý & Phân Tích Thông Minh:** Tích hợp bộ lọc thời gian (Ngày), bộ lọc phòng ban, tìm kiếm văn bản trực tiếp.
+* **Chống SPAM Điểm Danh:** Kiểm soát thời gian chống điểm danh lặp lại, có fallback hiện ảnh đã đăng ký khi không chụp được ảnh snapshot. Popup thông báo sử dụng thư viện SweetAlert2 hiện đại.
+
+<div align="center">
+  <img src="img_demo/admin_staff.png" alt="Quản lý Nhân Sự" width="48%">
+  <img src="img_demo/admin_mobile.png" alt="Giao diện Mobile" width="48%">
+</div>
+
+## 🚀 Cài Đặt và Khởi Chạy
 
 ```bash
-cd face-attendance/
+# 1. Tải source code và cài môi trường
+git clone https://github.com/Phuc710/AttendAI.git
+cd AttendAI
 
 python -m venv venv
-source venv/bin/activate        # macOS/Linux
-# venv\Scripts\activate         # Windows
+# Kích hoạt môi trường (Windows)
+venv\Scripts\activate
 
+# Cài đặt thư viện
 pip install -r requirements.txt
 
+# 2. Cấu hình Camera và Hệ thống
 cp .env.example .env
-# Chỉnh CAMERA_SOURCE=0 nếu dùng USB camera
-```
+# (Lưu ý: Mở file .env và chỉnh CAMERA_SOURCE=0 nếu dùng camera laptop)
 
-## Chạy
-
-```bash
-cd backend/
+# 3. Chạy Server
+cd backend
 python main.py
 ```
 
-## Truy Cập
+## 🌐 Các Đường Dẫn Truy Cập
 
-| URL | Mô tả |
-|-----|-------|
-| http://localhost:8000/kiosk | Màn hình kiosk (điểm danh) |
-| http://localhost:8000/admin | Admin dashboard |
-| http://localhost:8000/docs  | API docs (Swagger) |
-| ws://localhost:8000/ws/attendance | WebSocket realtime |
+| Màn hình | URL truy cập | Mô tả |
+| :--- | :--- | :--- |
+| **Kiosk** | `http://localhost:8000/kiosk` | Giao diện toàn màn hình đặt trước cửa ra vào, có bật stream luồng Camera điểm danh. |
+| **Admin** | `http://localhost:8000/admin` | Trang quản trị viên (Quản lý User, Log điểm danh, Dashboard biểu đồ). |
+| **API Docs** | `http://localhost:8000/docs` | Tài liệu API (Swagger UI). |
 
-## Quy Trình Demo
+## 🛠 Công Nghệ Sử Dụng (Tech Stack)
 
-1. Mở Admin → Sinh Viên → Thêm sinh viên
-2. Admin → Enrollment → Upload ảnh mỗi người
-3. Admin → Phiên Học → Bắt đầu session
-4. Admin → Hệ Thống → Bật Camera
-5. Mở Kiosk URL trên màn hình cảm ứng
-6. Sinh viên đi vào vùng camera → điểm danh tự động
-
-## Cấu Trúc
-
-```
-face-attendance/
-├── backend/
-│   ├── main.py          # FastAPI entry point
-│   ├── config.py        # Cấu hình từ .env
-│   ├── database.py      # SQLite init + helpers
-│   ├── api/             # REST routes
-│   └── services/        # AI, camera, attendance, WS
-├── frontend/
-│   ├── kiosk/           # Màn hình điểm danh
-│   └── admin/           # Dashboard quản trị
-├── .env.example
-└── requirements.txt
-```
+* **Backend:** Python, FastAPI, SQLite (cơ sở dữ liệu), InsightFace (lõi AI).
+* **Frontend:** HTML5, CSS thuần túy (Thiết kế System Design riêng cực đẹp), JS thuần túy, Chart.js, SweetAlert2.
+* **Truyền dẫn:** HTTP/RESTful cho CRUD, và **WebSocket** cho truyền tải khung hình (Video Stream) với độ trễ thấp.
