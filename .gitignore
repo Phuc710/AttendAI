@@ -1,0 +1,6 @@
+backend/storage/
+backend/face_attendance.db
+backend/.env
+__pycache__/
+*.pyc
+.DS_Store

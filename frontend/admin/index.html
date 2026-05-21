@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AttendAI Admin — Quản lý nhân viên</title>
+  <meta name="description" content="Dashboard quản trị nhận diện khuôn mặt nhân viên">
+  <link rel="stylesheet" href="admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+  <aside class="sidebar" aria-label="Admin navigation">
+    <div class="brand">
+      <div class="brand-mark">STF</div>
+      <div>
+        <div class="brand-title">AttendAI Staff</div>
+        <div class="brand-subtitle">Quản trị Hệ thống</div>
+      </div>
+    </div>
+
+    <nav class="nav-list">
+      <button class="nav-item active" type="button" data-view="dashboard">Phân tích biểu đồ</button>
+      <button class="nav-item" type="button" data-view="attendance">Nhật ký điểm danh</button>
+      <button class="nav-item" type="button" data-view="users">Đăng ký nhân sự</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="logoutBtn" class="btn-logout" type="button">🔓 Đăng xuất</button>
+      <div class="sidebar-status">
+        <span class="status-dot" id="wsDot"></span>
+        <span id="wsStatus">WebSocket offline</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Phân tích biểu đồ</h1>
+        <p id="pageSubtitle">Phân tích tần suất và lưu lượng điểm danh nhân viên</p>
+      </div>
+      <div class="topbar-actions">
+        <time class="clock" id="clock">--:--:--</time>
+        <button class="btn btn-secondary" type="button" data-action="refresh-all">Làm mới</button>
+      </div>
+    </header>
+
+    <div class="content">
+      
+      <!-- ═══ VIEW 1: ANALYSE (Biểu đồ) ══════════════════════ -->
+      <section class="view-panel active" id="view-dashboard" data-panel="dashboard">
+        <div class="metric-grid">
+          <article class="metric-card">
+            <span class="metric-label">Tổng nhân viên</span>
+            <strong id="metricStudents">0</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Đã đi làm hôm nay</span>
+            <strong id="metricActiveSession">0</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Vào đúng giờ</span>
+            <strong id="metricClasses">0</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Tổng số lượt quét</span>
+            <strong id="metricAttendance">0</strong>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Department Stats Bar Chart -->
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Phòng ban hoạt động</h2>
+                <p>Số lượt check-in hôm nay theo từng bộ phận</p>
+              </div>
+            </div>
+            <div id="deptChartContainer" class="chart-bar-container">
+              <!-- Dynamically populated -->
+            </div>
+          </section>
+
+          <!-- Weekly Check-in Bar Chart -->
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Tần suất 7 ngày qua</h2>
+                <p>Số lượt check-in ghi nhận mỗi ngày</p>
+              </div>
+            </div>
+            <div id="weeklyChart" class="weekly-chart">
+              <!-- Dynamically populated -->
+            </div>
+          </section>
+
+          <!-- Realtime Camera Stream -->
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Camera giám sát</h2>
+                <p>Luồng nhận diện trực tiếp</p>
+              </div>
+              <div class="button-row">
+                <button class="btn btn-success" type="button" data-action="start-camera">Bật</button>
+                <button class="btn btn-secondary" type="button" data-action="stop-camera">Tắt</button>
+              </div>
+            </div>
+            <div class="camera-frame">
+              <img id="cameraPreview" src="/api/camera/stream" alt="Camera stream">
+              <div class="cam-waiting hidden" id="adminCamWaiting">
+                <div class="cam-waiting-icon">📷</div>
+                <p>Camera offline</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Realtime Event Logs -->
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Nhật ký thời gian thực</h2>
+                <p>Sự kiện check-in trực tiếp từ camera</p>
+              </div>
+            </div>
+            <div class="event-list" id="eventFeed">
+              <p class="empty-text">Đang chờ sự kiện quét...</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ═══ VIEW 2: LOGS (Nhật ký) ═════════════════════════ -->
+      <section class="view-panel" id="view-attendance" data-panel="attendance">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Nhật ký điểm danh</h2>
+              <p id="attendanceCountText">0 bản ghi</p>
+            </div>
+            <div class="button-row">
+              <button class="btn btn-secondary" type="button" data-action="clear-attendance-filter">Xóa lọc</button>
+              <button class="btn btn-primary" type="button" data-action="export-attendance">Xuất CSV</button>
+            </div>
+          </div>
+          <div class="filter-grid">
+            <label>
+              <span>Phòng ban</span>
+              <select id="attendanceDeptFilter">
+                <option value="">Tất cả phòng ban</option>
+                <option value="Cyber Security">Cyber Security</option>
+                <option value="Physical Intelligence">Physical Intelligence</option>
+                <option value="Logistics & Supply">Logistics & Supply</option>
+                <option value="Executive Board">Executive Board</option>
+              </select>
+            </label>
+            <label>
+              <span>Ngày điểm danh</span>
+              <input id="attendanceDateFilter" type="date">
+            </label>
+            <label>
+              <span>Tìm kiếm tên / mã số</span>
+              <input id="attendanceSearchFilter" type="text" placeholder="Nhập từ khóa...">
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ảnh</th>
+                  <th>Mã nhân viên</th>
+                  <th>Họ và tên</th>
+                  <th>Phòng ban</th>
+                  <th>Thời gian quét</th>
+                  <th>Độ tin cậy</th>
+                </tr>
+              </thead>
+              <tbody id="attendanceTableBody">
+                <tr><td colspan="6" class="empty-row">Đang tải dữ liệu.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- ═══ VIEW 3: REGISTER (Đăng ký Staff) ═══════════════ -->
+      <section class="view-panel" id="view-users" data-panel="users">
+        <!-- Form Register Staff (Collapsible) -->
+        <section class="panel collapsible-panel" id="registerFormPanel">
+          <div class="panel-header" style="background: var(--surface-muted);">
+            <div>
+              <h2>Đăng ký Staff Credentials</h2>
+              <p>Thêm thông tin nhân viên và định dạng khuôn mặt</p>
+            </div>
+            <button class="btn btn-ghost" type="button" id="btnCloseRegisterForm">Đóng</button>
+          </div>
+          <form class="form-stack" id="userCreateForm">
+            <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; padding: 16px;">
+              <label>
+                <span>STAFF ID</span>
+                <input id="userCode" name="user_code" autocomplete="off" placeholder="EMP-000-X" required>
+              </label>
+              <label>
+                <span>FULL NAME</span>
+                <input id="userName" name="full_name" autocomplete="name" placeholder="Johnathan Vance" required>
+              </label>
+              <label>
+                <span>DEPARTMENT</span>
+                <select id="userDept" name="department" required>
+                  <option value="Cyber Security">Cyber Security</option>
+                  <option value="Physical Intelligence">Physical Intelligence</option>
+                  <option value="Logistics & Supply">Logistics & Supply</option>
+                  <option value="Executive Board">Executive Board</option>
+                </select>
+              </label>
+              <label>
+                <span>Tải ảnh khuôn mặt khuôn mẫu</span>
+                <input id="userFaceFiles" name="faces" type="file" accept="image/*" multiple>
+              </label>
+            </div>
+            <div class="preview-grid" id="userFacePreview" style="padding: 0 16px;"></div>
+            <div class="modal-actions" style="padding: 12px 16px 16px; border-top: 1px solid var(--line);">
+              <button class="btn btn-primary" type="submit" style="min-width: 150px;">Đăng ký</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Listing Staff Credentials -->
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Danh sách Staff Credentials</h2>
+              <p id="userCountText">0 bản ghi</p>
+            </div>
+            <button class="btn btn-primary" id="btnToggleRegisterForm" type="button">
+              Đăng ký nhân sự mới
+            </button>
+          </div>
+          
+          <!-- Filters (Phòng ban + Tìm kiếm) -->
+          <div class="filter-grid" style="border-bottom: 1px solid var(--line); padding: 14px 16px;">
+            <label>
+              <span>Phòng ban</span>
+              <select id="userRoleFilter">
+                <option value="">Tất cả</option>
+                <option value="Cyber Security">Cyber Security</option>
+                <option value="Physical Intelligence">Physical Intelligence</option>
+                <option value="Logistics & Supply">Logistics & Supply</option>
+                <option value="Executive Board">Executive Board</option>
+              </select>
+            </label>
+            <label>
+              <span>Ngày đăng ký</span>
+              <input id="userDateFilter" type="date">
+            </label>
+            <label>
+              <span>Tìm kiếm tên / mã số</span>
+              <input id="userSearchFilter" type="text" placeholder="Nhập từ khóa...">
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ảnh Face</th>
+                  <th>Staff ID</th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th class="table-actions">Action</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody">
+                <tr><td colspan="7" class="empty-row">Đang tải dữ liệu.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Edit Staff Dialog -->
+  <dialog class="modal" id="userEditDialog">
+    <form class="modal-card" id="userEditForm" method="dialog">
+      <div class="modal-header">
+        <h2>Chỉnh sửa nhân viên</h2>
+        <button class="btn btn-ghost" type="button" data-action="close-user-dialog">Đóng</button>
+      </div>
+      <input id="editUserId" type="hidden">
+      <label>
+        <span>Mã nhân viên (Staff ID)</span>
+        <input id="editUserCode" required>
+      </label>
+      <label>
+        <span>Họ và tên (Full Name)</span>
+        <input id="editUserName" required>
+      </label>
+      <label>
+        <span>Phòng ban (Department)</span>
+        <select id="editUserDept">
+          <option value="Cyber Security">Cyber Security</option>
+          <option value="Physical Intelligence">Physical Intelligence</option>
+          <option value="Logistics & Supply">Logistics & Supply</option>
+          <option value="Executive Board">Executive Board</option>
+        </select>
+      </label>
+      <label>
+        <span>Đăng ký thêm ảnh khuôn mặt</span>
+        <input id="editUserFaceFiles" type="file" accept="image/*" multiple>
+      </label>
+      <div class="modal-actions" style="margin-top: 18px;">
+        <button class="btn btn-secondary" type="button" data-action="close-user-dialog">Hủy</button>
+        <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Premium Glassmorphism Lock Overlay for Authentication -->
+  <div id="adminLoginOverlay" class="login-overlay hidden">
+    <div class="login-card">
+      <div class="login-logo">STF</div>
+      <h2>Đăng nhập Hệ thống</h2>
+      <p>Nhập mật khẩu quản trị viên để tiếp tục</p>
+      <form id="adminLoginForm">
+        <input type="password" id="adminPasswordInput" placeholder="Mật khẩu" required autocomplete="current-password">
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Xác nhận</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

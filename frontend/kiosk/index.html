@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Điểm Danh</title>
+  <meta name="description" content="Hệ thống điểm danh tự động bằng nhận diện khuôn mặt AI"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="kiosk.css"/>
+</head>
+<body>
+
+<!-- ═══ TOPBAR ═══════════════════════════════════════════ -->
+<header class="topbar" id="topbar">
+  <div class="topbar-left">
+    <div>
+      <div class="logo-title">AttendAI</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ═══ MAIN LAYOUT ═════════════════════════════════════ -->
+<main class="kiosk-main">
+
+  <!-- ── Camera Panel (LEFT) ─────────────────────────── -->
+  <section class="cam-section">
+    <div class="cam-frame" id="camFrame">
+      <img id="camImg" src="/api/camera/stream" alt="Camera Stream"/>
+      <canvas id="bboxCanvas"></canvas>
+
+      <!-- Overlay: waiting -->
+      <div class="cam-waiting" id="camWaiting">
+        <div class="cam-waiting-icon">📷</div>
+        <p style="font-weight:900; font-size:1.5rem; letter-spacing: 2px;">CAMERA OFFLINE</p>
+        <div class="cam-waiting-dots"><span></span><span></span><span></span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Attendance Panel (RIGHT) ────────────────────── -->
+  <aside class="att-panel">
+
+    <!-- Success Drop-Face Card (hidden by default) -->
+    <div class="drop-card" id="dropCard">
+      <div class="drop-inner" id="dropInner">
+        <div class="drop-check">
+          <svg viewBox="0 0 52 52" class="drop-check-svg">
+            <circle cx="26" cy="26" r="25" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <div class="drop-avatar-wrap">
+          <img id="dropAvatar" class="drop-avatar" src="" alt=""/>
+          <div class="drop-avatar-fallback" id="dropAvatarFallback">👤</div>
+        </div>
+        <div class="drop-name" id="dropName">—</div>
+        <div class="drop-code" id="dropCode">—</div>
+        <div class="drop-time" id="dropTime">--:--:--</div>
+        <div class="drop-conf" id="dropConf">
+          <div class="drop-conf-bar"><div class="drop-conf-fill" id="dropConfFill"></div></div>
+          <span id="dropConfTxt">0%</span>
+        </div>
+        <div class="drop-status" id="dropStatus">Điểm danh thành công</div>
+      </div>
+    </div>
+
+
+
+    <!-- Divider -->
+    <div class="att-divider">
+      <span class="att-divider-line"></span>
+      <span class="att-divider-text">Lịch sử hôm nay</span>
+      <span class="att-divider-line"></span>
+    </div>
+
+    <!-- Check-in list -->
+    <div class="att-list-header">
+      <span>Đã điểm danh</span>
+      <span class="att-count" id="attCount">0</span>
+    </div>
+    <div class="att-list" id="attList">
+      <div class="att-empty" id="attEmpty">Chưa có ai điểm danh</div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- ═══ TOAST ═══════════════════════════════════════════ -->
+<div class="toast" id="toast"></div>
+
+<script src="kiosk.js"></script>
+</body>
+</html>
