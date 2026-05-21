@@ -9,7 +9,6 @@ const WS_URL = `ws://${location.host}/ws/attendance`;
 
 let ws = null;
 let checkinCount = 0;
-let dropTimer = null;
 let _checkedUsers = new Set(); // Bộ nhớ tạm để chặn trùng lặp trong phiên hiện tại
 
 // ─── Bbox State ───────────────────────────────────────────
@@ -28,16 +27,6 @@ const DOM = {
   camHud: $('camHud'),
   hudFaces: $('hudFaces'),
   hudFps: $('hudFps'),
-  // Drop card
-  dropCard: $('dropCard'),
-  dropAvatar: $('dropAvatar'),
-  dropFallback: $('dropAvatarFallback'),
-  dropName: $('dropName'),
-  dropCode: $('dropCode'),
-  dropTime: $('dropTime'),
-  dropConfFill: $('dropConfFill'),
-  dropConfTxt: $('dropConfTxt'),
-  dropStatus: $('dropStatus'),
   // List
   attCount: $('attCount'),
   attList: $('attList'),
@@ -115,10 +104,9 @@ function handleEvent(data) {
       _checkedUsers.add(data.user_id);
       setBoxes([{
         bbox: data.bbox,
-        label: `✓ ${data.full_name}  ${Math.round(data.confidence * 100)}%`,
+        label: `${data.full_name}`,
         color: '#22c55e',
       }], true);
-      showDropCard(data);
       addCheckinItem(data);
       showToast(`✅ ${data.full_name} — Điểm danh thành công`, 'success');
       break;
@@ -127,7 +115,7 @@ function handleEvent(data) {
     case 'already_checked_in':
       setBoxes([{
         bbox: data.bbox,
-        label: `${data.full_name} ✓ Đã có mặt`,
+        label: data.full_name || 'Confirmed',
         color: '#22c55e',
       }], true);
       break;
@@ -136,7 +124,7 @@ function handleEvent(data) {
     case 'unknown_face':
       setBoxes([{
         bbox: data.bbox,
-        label: 'Không nhận ra',
+        label: 'Unknown',
         color: '#ef4444',
       }], true);
       break;
@@ -184,60 +172,6 @@ function handleEvent(data) {
   }
 }
 
-
-// ═══════════════════════════════════════════════════════════
-//  DROP-FACE CARD (Success Animation)
-// ═══════════════════════════════════════════════════════════
-
-function showDropCard(data, isAgain = false) {
-  // Clear previous timer
-  if (dropTimer) clearTimeout(dropTimer);
-
-  // Set data
-  DOM.dropName.textContent = data.full_name || '—';
-  DOM.dropCode.textContent = data.user_code || data.student_code || '—';
-
-  const timeStr = data.check_in_time || data.checkin_time || new Date().toISOString();
-  const time = new Date(timeStr).toLocaleTimeString('vi-VN', { hour12: false });
-  DOM.dropTime.textContent = time;
-
-  const confPct = Math.round((data.confidence || 0) * 100);
-  DOM.dropConfFill.style.width = confPct + '%';
-  DOM.dropConfTxt.textContent = confPct + '%';
-
-  // Avatar
-  const snap = data.snapshot_path
-    ? `/storage/snapshots/${data.snapshot_path.split(/[/\\]/).pop()}`
-    : '';
-  
-  if (snap) {
-    DOM.dropAvatar.src = snap;
-    DOM.dropAvatar.style.display = 'block';
-  } else {
-    DOM.dropAvatar.style.display = 'none';
-  }
-
-  // Status
-  DOM.dropStatus.textContent = isAgain ? '✓ Bạn đã điểm danh rồi' : '✅ Điểm danh thành công';
-
-  // Force re-trigger CSS animation by re-creating inner HTML for SVG
-  const svgWrap = DOM.dropCard.querySelector('.drop-check');
-  if (svgWrap) {
-    svgWrap.innerHTML = `
-      <svg viewBox="0 0 52 52" class="drop-check-svg">
-        <circle cx="26" cy="26" r="25" fill="none" stroke="currentColor" stroke-width="2"/>
-        <path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-      </svg>`;
-  }
-
-  // Show card with animation
-  DOM.dropCard.classList.add('visible');
-
-  // Auto-hide after 6 seconds
-  dropTimer = setTimeout(() => {
-    DOM.dropCard.classList.remove('visible');
-  }, 6000);
-}
 
 
 // ═══════════════════════════════════════════════════════════
@@ -330,9 +264,9 @@ function drawLoop() {
     const w = bbox.w * scaleX;
     const h = bbox.h * scaleY;
 
-    // Glow
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
+    // Box — solid, no glow
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, w, h);
@@ -350,14 +284,13 @@ function drawLoop() {
       ctx.stroke();
     });
 
-    // Label
-    ctx.shadowBlur = 0;
+    // Label — solid background
     ctx.font = 'bold 13px Inter, sans-serif';
     const tw = ctx.measureText(label).width;
     const ly = y > 30 ? y - 30 : y + h + 4;
 
     roundRect(ctx, x, ly, tw + 16, 24, 5);
-    ctx.fillStyle = color + 'dd';
+    ctx.fillStyle = color;
     ctx.fill();
 
     ctx.fillStyle = '#fff';

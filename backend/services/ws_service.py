@@ -26,7 +26,11 @@ class WSBroadcaster:
         except Exception:
             pass
         finally:
-            self._clients.remove(ws)
+            # Dùng try/except thay vì remove() để tránh ValueError khi đã bị xóa bởi broadcast()
+            try:
+                self._clients.remove(ws)
+            except ValueError:
+                pass
             log.info(f"WS client disconnected. Total: {len(self._clients)}")
 
     async def broadcast(self, payload: dict):
@@ -34,13 +38,16 @@ class WSBroadcaster:
             return
         msg = json.dumps(payload, ensure_ascii=False, default=str)
         dead = []
-        for ws in self._clients:
+        for ws in list(self._clients):  # copy list để tránh concurrent modification
             try:
                 await ws.send_text(msg)
             except Exception:
                 dead.append(ws)
         for ws in dead:
-            self._clients.remove(ws)
+            try:
+                self._clients.remove(ws)
+            except ValueError:
+                pass
 
     def push(self, payload: dict):
         """Gọi từ thread đồng bộ (AI worker) — schedule vào event loop."""

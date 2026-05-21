@@ -521,24 +521,34 @@ function exportAttendance() {
 
 // ─── DASHBOARD METRICS & CHARTS ───────────────────────────
 function updateDashboardMetrics() {
-  // Tính toán số liệu dựa trên state hiện tại
+  // Lấy ngày hôm nay theo local time (tránh lệch múi giờ UTC+7)
+  const now = new Date();
+  const localToday = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
   const totalEmployees = state.users.length;
-  
-  // Lọc log check-in ngày hôm nay
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayLogs = state.attendance.filter(log => log.check_in_time.startsWith(todayStr));
-  
-  // Đã đi làm hôm nay (số lượng staff id độc nhất check-in hôm nay)
+
+  // Lọc log hôm nay theo local date
+  const todayLogs = state.attendance.filter(log => {
+    if (!log.check_in_time) return false;
+    const d = new Date(log.check_in_time);
+    const logDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return logDate === localToday;
+  });
+
+  // Đã đi làm hôm nay (số nhân viên độc nhất check-in hôm nay)
   const uniqueUsersToday = new Set(todayLogs.map(log => log.user_code)).size;
-  
-  // Vào đúng giờ hôm nay
-  const onTimeToday = todayLogs.filter(log => log.arrival_status !== "late").length;
-  
+
+  // Lượt quét hôm nay (tổng bản ghi check-in ngày hôm nay)
+  const scansToday = todayLogs.length;
+
+  // Tổng tất cả lượt quét (toàn bộ lịch sử)
+  const totalScans = state.attendance.length;
+
   // Cập nhật lên UI
-  if ($("#metricStudents")) $("#metricStudents").textContent = totalEmployees;
+  if ($("#metricStudents"))      $("#metricStudents").textContent      = totalEmployees;
   if ($("#metricActiveSession")) $("#metricActiveSession").textContent = uniqueUsersToday;
-  if ($("#metricClasses")) $("#metricClasses").textContent = onTimeToday;
-  if ($("#metricAttendance")) $("#metricAttendance").textContent = state.attendance.length;
+  if ($("#metricClasses"))       $("#metricClasses").textContent       = scansToday;
+  if ($("#metricAttendance"))    $("#metricAttendance").textContent    = totalScans;
 }
 
 function renderCharts() {

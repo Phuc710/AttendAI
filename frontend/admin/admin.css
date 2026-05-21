@@ -643,7 +643,7 @@ th,
 td {
   border-bottom: 1px solid var(--line);
   padding: 10px 12px;
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
   min-height: 48px;
 }
@@ -661,13 +661,14 @@ tbody tr:hover td {
 }
 
 .table-actions {
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
+  min-width: 148px;
 }
 
 .action-cell {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
   min-width: 148px;
 }
@@ -716,12 +717,13 @@ tbody tr:hover td {
 .avatar,
 .face-thumb,
 .table-avatar-fallback {
-  display: grid;
+  display: inline-grid;
   place-items: center;
 }
 
 .table-avatar {
-  display: block;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .table-avatar-fallback {
