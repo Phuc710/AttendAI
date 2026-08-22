@@ -22,10 +22,11 @@
       <button class="nav-item active" type="button" data-view="dashboard">Phân tích biểu đồ</button>
       <button class="nav-item" type="button" data-view="attendance">Nhật ký điểm danh</button>
       <button class="nav-item" type="button" data-view="users">Đăng ký nhân sự</button>
+      <button class="nav-item" type="button" data-view="system-logs">Nhật ký hệ thống</button>
     </nav>
 
     <div class="sidebar-footer">
-      <button id="logoutBtn" class="btn-logout" type="button">🔓 Đăng xuất</button>
+      <button id="logoutBtn" class="btn-logout" type="button">Đăng xuất</button>
       <div class="sidebar-status">
         <span class="status-dot" id="wsDot"></span>
         <span id="wsStatus">WebSocket offline</span>
@@ -185,46 +186,6 @@
 
       <!-- ═══ VIEW 3: REGISTER (Đăng ký Staff) ═══════════════ -->
       <section class="view-panel" id="view-users" data-panel="users">
-        <!-- Form Register Staff (Collapsible) -->
-        <section class="panel collapsible-panel" id="registerFormPanel">
-          <div class="panel-header" style="background: var(--surface-muted);">
-            <div>
-              <h2>Đăng ký Staff Credentials</h2>
-              <p>Thêm thông tin nhân viên và định dạng khuôn mặt</p>
-            </div>
-            <button class="btn btn-ghost" type="button" id="btnCloseRegisterForm">Đóng</button>
-          </div>
-          <form class="form-stack" id="userCreateForm">
-            <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; padding: 16px;">
-              <label>
-                <span>STAFF ID</span>
-                <input id="userCode" name="user_code" autocomplete="off" placeholder="EMP-000-X" required>
-              </label>
-              <label>
-                <span>FULL NAME</span>
-                <input id="userName" name="full_name" autocomplete="name" placeholder="Johnathan Vance" required>
-              </label>
-              <label>
-                <span>DEPARTMENT</span>
-                <select id="userDept" name="department" required>
-                  <option value="Cyber Security">Cyber Security</option>
-                  <option value="Physical Intelligence">Physical Intelligence</option>
-                  <option value="Logistics & Supply">Logistics & Supply</option>
-                  <option value="Executive Board">Executive Board</option>
-                </select>
-              </label>
-              <label>
-                <span>Tải ảnh khuôn mặt khuôn mẫu</span>
-                <input id="userFaceFiles" name="faces" type="file" accept="image/*" multiple>
-              </label>
-            </div>
-            <div class="preview-grid" id="userFacePreview" style="padding: 0 16px;"></div>
-            <div class="modal-actions" style="padding: 12px 16px 16px; border-top: 1px solid var(--line);">
-              <button class="btn btn-primary" type="submit" style="min-width: 150px;">Đăng ký</button>
-            </div>
-          </form>
-        </section>
-
         <!-- Listing Staff Credentials -->
         <section class="panel">
           <div class="panel-header">
@@ -232,9 +193,6 @@
               <h2>Danh sách Staff Credentials</h2>
               <p id="userCountText">0 bản ghi</p>
             </div>
-            <button class="btn btn-primary" id="btnToggleRegisterForm" type="button">
-              Đăng ký nhân sự mới
-            </button>
           </div>
           
           <!-- Filters (Phòng ban + Tìm kiếm) -->
@@ -267,13 +225,62 @@
                   <th>Staff ID</th>
                   <th>Name</th>
                   <th>Department</th>
-                  <th>Status</th>
                   <th>Date</th>
                   <th class="table-actions">Action</th>
                 </tr>
               </thead>
               <tbody id="userTableBody">
-                <tr><td colspan="7" class="empty-row">Đang tải dữ liệu.</td></tr>
+                <tr><td colspan="6" class="empty-row">Đang tải dữ liệu.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- ═══ VIEW 4: SYSTEM LOGS (Nhật ký hệ thống) ═════════ -->
+      <section class="view-panel" id="view-system-logs" data-panel="system-logs">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Nhật ký hệ thống</h2>
+              <p id="systemLogsCountText">0 bản ghi</p>
+            </div>
+            <div class="button-row">
+              <button class="btn btn-secondary" type="button" data-action="clear-syslog-filter">Xóa lọc</button>
+            </div>
+          </div>
+          <div class="filter-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; padding: 14px 16px;">
+            <label>
+              <span>Loại sự kiện</span>
+              <select id="syslogTypeFilter">
+                <option value="">Tất cả</option>
+                <option value="checkin">Điểm danh (checkin)</option>
+                <option value="register">Nhân sự (register)</option>
+                <option value="auth">Xác thực (auth)</option>
+                <option value="system">Hệ thống (system)</option>
+              </select>
+            </label>
+            <label>
+              <span>Ngày ghi nhận</span>
+              <input id="syslogDateFilter" type="date">
+            </label>
+            <label>
+              <span>Tìm kiếm sự kiện</span>
+              <input id="syslogSearchFilter" type="text" placeholder="Nhập từ khóa...">
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 180px;">Thời gian</th>
+                  <th style="width: 150px;">Loại sự kiện</th>
+                  <th>Nội dung sự kiện</th>
+                  <th>Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody id="syslogTableBody">
+                <tr><td colspan="4" class="empty-row">Đang tải dữ liệu.</td></tr>
               </tbody>
             </table>
           </div>
@@ -308,10 +315,7 @@
           <option value="Executive Board">Executive Board</option>
         </select>
       </label>
-      <label>
-        <span>Đăng ký thêm ảnh khuôn mặt</span>
-        <input id="editUserFaceFiles" type="file" accept="image/*" multiple>
-      </label>
+
       <div class="modal-actions" style="margin-top: 18px;">
         <button class="btn btn-secondary" type="button" data-action="close-user-dialog">Hủy</button>
         <button class="btn btn-primary" type="submit">Lưu thay đổi</button>

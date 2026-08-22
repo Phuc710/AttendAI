@@ -86,7 +86,7 @@ def _ai_worker():
             
             label = "Unknown"
             if user:
-                label = user["full_name"]
+                label = user["user_code"]
                 result = att_svc.handle(
                     user_id=user["user_id"],
                     confidence=score,
@@ -95,9 +95,9 @@ def _ai_worker():
                 )
                 status = result["status"]
                 if status == "checked_in":
-                    broadcaster.push_checkin_success(user, score, bbox, result.get("log_id", 0), result.get("snapshot_path", ""))
+                    broadcaster.push_checkin_success(user, score, bbox, result.get("log_id", 0), result.get("snapshot_path", ""), result.get("arrival_status", "on_time"))
                 elif status == "already_checked_in":
-                    broadcaster.push_already_checked(user, bbox)
+                    broadcaster.push_already_checked(user, bbox, result.get("arrival_status", "on_time"))
             else:
                 if SAVE_UNKNOWN:
                     _save_unknown(face_svc.crop_face(frame, bbox))

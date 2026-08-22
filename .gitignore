@@ -1,6 +1,15 @@
 backend/storage/
 backend/face_attendance.db
+backend/face_attendance.db-wal
+backend/face_attendance.db-shm
 backend/.env
+.env
+*.db
+*.db-*
 __pycache__/
+*/__pycache__/
 *.pyc
 .DS_Store
+venv/
+.venv/
+

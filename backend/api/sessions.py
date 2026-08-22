@@ -18,10 +18,10 @@ class SessionStart(BaseModel):
 @router.post("/start", status_code=201)
 def start_session(body: SessionStart):
     with get_db() as conn:
-        # Kiểm tra lớp tồn tại
-        cls = conn.execute("SELECT * FROM classes WHERE id=?", (body.class_id,)).fetchone()
+        # Kiểm tra nhóm tồn tại
+        cls = conn.execute("SELECT * FROM groups WHERE id=?", (body.class_id,)).fetchone()
         if not cls:
-            raise HTTPException(404, "Lớp không tồn tại")
+            raise HTTPException(404, "Nhóm không tồn tại")
 
         # Kiểm tra session đang chạy
         active = conn.execute(
@@ -30,23 +30,23 @@ def start_session(body: SessionStart):
         if active:
             raise HTTPException(409, {"error": "session_already_active", "session_code": active["session_code"]})
 
-        code = f"{cls['class_code']}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+        code = f"{cls['group_code']}-{datetime.now().strftime('%Y%m%d-%H%M')}"
         conn.execute(
-            """INSERT INTO sessions (session_code, class_id, late_threshold_mins)
+            """INSERT INTO sessions (session_code, group_id, late_threshold_mins)
                VALUES (?,?,?)""",
             (code, body.class_id, body.late_threshold_mins),
         )
         row = conn.execute("""
-            SELECT s.*, c.class_name, c.subject_code, u.full_name as teacher_name
+            SELECT s.*, s.group_id as class_id, g.group_name as class_name, g.description as subject_code, u.full_name as teacher_name
             FROM sessions s
-            JOIN classes c ON c.id = s.class_id
-            LEFT JOIN users u ON u.id = c.teacher_id
+            JOIN groups g ON g.id = s.group_id
+            LEFT JOIN users u ON u.id = g.manager_id
             WHERE s.session_code=?
         """, (code,)).fetchone()
 
     reset_cache()
-    # Load class index vào FAISS RAM cho lớp này
-    match_svc.load_class_index(body.class_id)
+    # Load group index vào FAISS RAM cho nhóm này
+    match_svc.load_group_index(body.class_id)
     return dict(row)
 
 
@@ -68,7 +68,7 @@ def end_session():
         ).fetchone()[0]
 
     reset_cache()
-    match_svc.clear_class_index()
+    match_svc.clear_group_index()
     return {
         "session_id":    session["id"],
         "session_code":  session["session_code"],
@@ -83,14 +83,15 @@ def get_active():
     with get_db() as conn:
         row = conn.execute("""
             SELECT s.*,
-                   c.class_name, c.subject_code, c.room,
+                   g.group_name as class_name, g.description as subject_code, g.location as room,
+                   s.group_id as class_id,
                    u.full_name as teacher_name,
                    COUNT(l.id) as total_checked,
                    SUM(CASE WHEN l.arrival_status='late' THEN 1 ELSE 0 END) as total_late,
-                   (SELECT COUNT(*) FROM class_students cs WHERE cs.class_id = s.class_id) as total_students
+                   (SELECT COUNT(*) FROM group_members gm WHERE gm.group_id = s.group_id) as total_students
             FROM sessions s
-            JOIN classes c ON c.id = s.class_id
-            LEFT JOIN users u ON u.id = c.teacher_id
+            JOIN groups g ON g.id = s.group_id
+            LEFT JOIN users u ON u.id = g.manager_id
             LEFT JOIN attendance_logs l ON l.session_id=s.id AND l.status='checked_in'
             WHERE s.status='active'
             GROUP BY s.id LIMIT 1
@@ -105,14 +106,15 @@ def list_sessions(limit: int = 30):
     with get_db() as conn:
         rows = conn.execute("""
             SELECT s.*,
-                   c.class_name, c.subject_code, c.room,
+                   g.group_name as class_name, g.description as subject_code, g.location as room,
+                   s.group_id as class_id,
                    u.full_name as teacher_name,
                    COUNT(l.id) as total_checked,
                    SUM(CASE WHEN l.arrival_status='late' THEN 1 ELSE 0 END) as total_late,
                    ROUND(AVG(l.confidence),3) as avg_conf
             FROM sessions s
-            JOIN classes c ON c.id = s.class_id
-            LEFT JOIN users u ON u.id = c.teacher_id
+            JOIN groups g ON g.id = s.group_id
+            LEFT JOIN users u ON u.id = g.manager_id
             LEFT JOIN attendance_logs l ON l.session_id=s.id AND l.status='checked_in'
             GROUP BY s.id ORDER BY s.started_at DESC LIMIT ?
         """, (limit,)).fetchall()

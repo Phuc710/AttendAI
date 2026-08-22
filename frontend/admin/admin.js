@@ -3,6 +3,7 @@ const API_BASE = "";
 const state = {
   users: [],
   attendance: [],
+  systemLogs: [],
   ws: null,
   reconnectTimer: null
 };
@@ -11,6 +12,7 @@ const viewMeta = {
   dashboard: ["Phân tích biểu đồ", "Phân tích tần suất và lưu lượng điểm danh nhân viên"],
   attendance: ["Nhật ký điểm danh", "Tra cứu log điểm danh và xuất báo cáo"],
   users: ["Đăng ký nhân sự", "Quản lý mã nhân viên, phòng ban và Face ID"],
+  "system-logs": ["Nhật ký hệ thống", "Tra cứu lịch sử hoạt động và sự kiện hệ thống"],
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -69,24 +71,19 @@ function init() {
 function bindUi() {
   document.addEventListener("click", handleDocumentClick);
 
-  $("#userCreateForm")?.addEventListener("submit", handleCreateUser);
   $("#userEditForm")?.addEventListener("submit", handleEditUser);
 
   $("#userRoleFilter")?.addEventListener("change", renderUsers);
   $("#userDateFilter")?.addEventListener("change", renderUsers);
   $("#userSearchFilter")?.addEventListener("input", debounce(renderUsers, 250));
-  $("#userFaceFiles")?.addEventListener("change", event => renderFilePreview(event.target.files, $("#userFacePreview")));
-
-  $("#btnToggleRegisterForm")?.addEventListener("click", () => {
-    $("#registerFormPanel")?.classList.toggle("open");
-  });
-  $("#btnCloseRegisterForm")?.addEventListener("click", () => {
-    $("#registerFormPanel")?.classList.remove("open");
-  });
 
   $("#attendanceDeptFilter")?.addEventListener("change", loadAttendance);
   $("#attendanceDateFilter")?.addEventListener("change", loadAttendance);
   $("#attendanceSearchFilter")?.addEventListener("input", debounce(loadAttendance, 250));
+
+  $("#syslogTypeFilter")?.addEventListener("change", loadSystemLogs);
+  $("#syslogDateFilter")?.addEventListener("change", loadSystemLogs);
+  $("#syslogSearchFilter")?.addEventListener("input", debounce(loadSystemLogs, 250));
 
   const preview = $("#cameraPreview");
   const waiting = $("#adminCamWaiting");
@@ -122,6 +119,7 @@ function dispatchAction(action, button) {
     "start-camera": startCamera,
     "stop-camera": stopCamera,
     "clear-attendance-filter": clearAttendanceFilter,
+    "clear-syslog-filter": clearSyslogFilter,
     "export-attendance": exportAttendance,
     "edit-user": () => openUserDialog(id),
     "delete-user": () => deleteUser(id),
@@ -143,6 +141,7 @@ function showView(view) {
   $("#pageSubtitle").textContent = subtitle;
 
   if (view === "attendance") loadAttendance();
+  if (view === "system-logs") loadSystemLogs();
   if (view === "dashboard") {
     renderCharts();
     updateDashboardMetrics();
@@ -188,7 +187,8 @@ async function refreshAll() {
   if (sessionStorage.getItem("admin_authenticated") !== "true") return;
   await Promise.allSettled([
     loadUsers(),
-    loadAttendance()
+    loadAttendance(),
+    loadSystemLogs()
   ]);
 }
 
@@ -230,7 +230,7 @@ function renderUsers() {
   $("#userCountText").textContent = `${users.length} bản ghi`;
 
   if (!users.length) {
-    body.innerHTML = `<tr><td colspan="7" class="empty-row">Không có nhân viên phù hợp.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="empty-row">Không có nhân viên phù hợp.</td></tr>`;
     return;
   }
 
@@ -240,7 +240,6 @@ function renderUsers() {
       <td><code>${escapeText(user.user_code)}</code></td>
       <td><div class="cell-main">${escapeText(user.full_name)}</div></td>
       <td><div class="cell-sub" style="font-weight:600;">${escapeText(user.department || "—")}</div></td>
-      <td>${faceStatusBadge(user.embed_count)}</td>
       <td>${formatDateTime(user.created_at)}</td>
       <td>
         <div class="action-cell">
@@ -252,12 +251,6 @@ function renderUsers() {
   `).join("");
 }
 
-function faceStatusBadge(count) {
-  return count > 0
-    ? `<span class="badge badge-success">✓ ĐÃ XÁC MINH</span>`
-    : `<span class="badge badge-warning">✗ CHƯA XÁC MINH</span>`;
-}
-
 function renderFaceCell(user) {
   if (user.face_image) {
     const url = `/storage/enrolled/${user.face_image.split(/[/\\]/).pop()}`;
@@ -266,42 +259,7 @@ function renderFaceCell(user) {
   return `<div class="table-avatar-fallback">👤</div>`;
 }
 
-async function handleCreateUser(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const submit = form.querySelector("button[type='submit']");
-  const body = {
-    user_code: $("#userCode").value.trim(),
-    full_name: $("#userName").value.trim(),
-    department: $("#userDept").value,
-    role: "student" // Giữ tương thích schema
-  };
 
-  if (!body.user_code || !body.full_name) {
-    showToast("Vui lòng nhập đầy đủ mã số và họ tên.", true);
-    return;
-  }
-
-  setBusy(submit, true, "Đang thêm");
-  try {
-    const user = await request("/api/users", jsonOptions("POST", body));
-    const files = $("#userFaceFiles").files;
-    if (files.length) {
-      const result = await enrollFiles(user.id, files);
-      showEnrollResult(result, user.full_name);
-    } else {
-      showToast("Đã đăng ký nhân sự thành công.");
-    }
-    form.reset();
-    $("#userFacePreview").innerHTML = "";
-    $("#registerFormPanel")?.classList.remove("open");
-    await loadUsers();
-  } catch (error) {
-    showToast(error.message, true);
-  } finally {
-    setBusy(submit, false, "Đăng ký thông tin");
-  }
-}
 
 async function openUserDialog(userId) {
   const user = state.users.find(item => item.id === userId) || await request(`/api/users/${userId}`);
@@ -309,7 +267,6 @@ async function openUserDialog(userId) {
   $("#editUserCode").value = user.user_code || "";
   $("#editUserName").value = user.full_name || "";
   $("#editUserDept").value = user.department || "Cyber Security";
-  $("#editUserFaceFiles").value = "";
   $("#userEditDialog").showModal();
 }
 
@@ -330,13 +287,7 @@ async function handleEditUser(event) {
   setBusy(submit, true, "Đang lưu");
   try {
     await request(`/api/users/${id}`, jsonOptions("PUT", body));
-    const files = $("#editUserFaceFiles").files;
-    if (files.length) {
-      const result = await enrollFiles(id, files);
-      showEnrollResult(result, body.full_name);
-    } else {
-      showToast("Đã cập nhật thông tin nhân viên.");
-    }
+    showToast("Đã cập nhật thông tin nhân viên.");
     closeUserDialog();
     await loadUsers();
   } catch (error) {
@@ -351,7 +302,7 @@ async function deleteUser(userId) {
 
   const result = await Swal.fire({
     title: "Xác nhận xóa?",
-    text: "Mã nhân viên này và toàn bộ dữ liệu quét khuôn mặt, lịch sử điểm danh liên quan sẽ bị xóa vĩnh viễn!",
+    text: "Thông tin nhân sự và dữ liệu của người này sẽ bị xóa khỏi danh sách hệ thống.",
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "var(--danger, #c93737)",
@@ -557,8 +508,9 @@ function renderCharts() {
   
   if (deptContainer) {
     // Thống kê phòng ban hôm nay
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayLogs = state.attendance.filter(log => log.check_in_time.startsWith(todayStr));
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const todayLogs = state.attendance.filter(log => checkDateMatch(log.check_in_time, todayStr));
     
     const depts = {
       "Cyber Security": 0,
@@ -596,8 +548,8 @@ function renderCharts() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const count = state.attendance.filter(log => log.check_in_time.startsWith(dateStr)).length;
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const count = state.attendance.filter(log => checkDateMatch(log.check_in_time, dateStr)).length;
       stats.push({
         label: weekdayNames[d.getDay()],
         val: count
@@ -670,10 +622,9 @@ function connectWebSocket() {
   state.ws.onmessage = event => {
     try {
       const msg = JSON.parse(event.data);
-      if (msg.event === "check_in") {
+      if (msg.event === "checkin_success" || msg.event === "already_checked_in") {
         // Thêm sự kiện realtime
-        addRealtimeEvent(msg.data);
-        showToast(`Quét thành công: ${msg.data.full_name}`);
+        addRealtimeEvent(msg);
         
         // Cập nhật bảng và biểu đồ nếu đang hiển thị
         refreshAll();
@@ -703,7 +654,7 @@ function addRealtimeEvent(data) {
   const empty = feed.querySelector(".empty-text");
   if (empty) empty.remove();
 
-  const time = new Date(data.check_in_time).toLocaleTimeString("vi-VN", { hour12: false });
+  const time = new Date(data.check_in_time || data.checkin_time || new Date()).toLocaleTimeString("vi-VN", { hour12: false });
   const row = document.createElement("div");
   row.className = `event-row ${data.arrival_status === "late" ? "danger" : "success"}`;
   row.style.display = "flex";
@@ -714,10 +665,13 @@ function addRealtimeEvent(data) {
   row.style.fontSize = "13px";
 
   row.innerHTML = `
-    <span style="font-weight:700; color:var(--muted);">${time}</span>
-    <span style="font-weight:700;">${escapeText(data.full_name)}</span>
-    <span style="font-size:12px; color:var(--primary); font-weight:600;">[${escapeText(data.department || "Nhân sự")}]</span>
-    <span style="margin-left:auto; font-weight:700; color:${data.arrival_status === 'late' ? 'var(--danger)' : 'var(--success)'};">
+    <span style="width: 70px; flex-shrink: 0; font-weight:700; color:var(--muted);">${time}</span>
+    <div style="flex-grow: 1; flex-shrink: 1; min-width: 0; display:flex; flex-direction:column; gap:2px; padding-right: 10px;">
+      <span style="font-weight:700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeText(data.full_name)}</span>
+      <span style="font-size:11px; color:var(--muted); font-family:monospace;">${escapeText(data.user_code || data.student_code || '—')}</span>
+    </div>
+    <span style="width: 180px; flex-shrink: 0; font-size:12px; color:var(--primary); font-weight:600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">[${escapeText(data.department || "Nhân sự")}]</span>
+    <span style="width: 90px; flex-shrink: 0; text-align: right; font-weight:700; color:${data.arrival_status === 'late' ? 'var(--danger)' : 'var(--success)'};">
       ${data.arrival_status === 'late' ? 'VÀO MUỘN' : 'ĐÚNG GIỜ'}
     </span>
   `;
@@ -818,3 +772,70 @@ function checkDateMatch(dbDateStr, filterDateStr) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}` === filterDateStr;
 }
+
+// ─── SYSTEM LOGS ──────────────────────────────────────────
+async function loadSystemLogs() {
+  try {
+    const type = $("#syslogTypeFilter")?.value || "";
+    const dateVal = $("#syslogDateFilter")?.value || "";
+    const search = $("#syslogSearchFilter")?.value.trim().toLowerCase() || "";
+
+    let url = `/api/system/logs?limit=300`;
+    if (type) url += `&event_type=${encodeURIComponent(type)}`;
+
+    const data = await request(url);
+    let logs = data.logs || [];
+
+    if (dateVal) {
+      logs = logs.filter(log => checkDateMatch(log.created_at, dateVal));
+    }
+
+    if (search) {
+      logs = logs.filter(log => 
+        (log.message && log.message.toLowerCase().includes(search)) || 
+        (log.detail && log.detail.toLowerCase().includes(search))
+      );
+    }
+
+    state.systemLogs = logs;
+    renderSystemLogs();
+  } catch (error) {
+    renderTableError("syslogTableBody", 4, error);
+  }
+}
+
+function renderSystemLogs() {
+  const body = $("#syslogTableBody");
+  if (!body) return;
+
+  $("#systemLogsCountText").textContent = `${state.systemLogs.length} bản ghi`;
+
+  if (!state.systemLogs.length) {
+    body.innerHTML = `<tr><td colspan="4" class="empty-row">Không tìm thấy sự kiện hệ thống nào.</td></tr>`;
+    return;
+  }
+
+  const badgeMap = {
+    checkin: '<span class="badge badge-success">CHECK-IN</span>',
+    register: '<span class="badge badge-primary">REGISTER</span>',
+    auth: '<span class="badge badge-warning">AUTH</span>',
+    system: '<span class="badge badge-secondary">SYSTEM</span>'
+  };
+
+  body.innerHTML = state.systemLogs.map(log => `
+    <tr>
+      <td>${formatDateTime(log.created_at)}</td>
+      <td>${badgeMap[log.event_type] || `<span class="badge badge-secondary">${escapeText(log.event_type)}</span>`}</td>
+      <td><div class="cell-main" style="text-align:left; font-weight:600;">${escapeText(log.message)}</div></td>
+      <td><div class="cell-sub" style="text-align:left; font-family:monospace; font-size:12px;">${escapeText(log.detail || "—")}</div></td>
+    </tr>
+  `).join("");
+}
+
+function clearSyslogFilter() {
+  if ($("#syslogTypeFilter")) $("#syslogTypeFilter").value = "";
+  if ($("#syslogDateFilter")) $("#syslogDateFilter").value = "";
+  if ($("#syslogSearchFilter")) $("#syslogSearchFilter").value = "";
+  loadSystemLogs();
+}
+

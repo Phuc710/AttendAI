@@ -33,14 +33,31 @@ def detect_and_embed(frame: np.ndarray) -> list[dict]:
     Detect toàn bộ khuôn mặt trong frame.
     Trả về list [{ bbox, embedding, det_score, quality_ok }].
     """
+    h_orig, w_orig = frame.shape[:2]
+    max_w = 640
+    if w_orig > max_w:
+        scale = max_w / w_orig
+        new_w = max_w
+        new_h = int(h_orig * scale)
+        resized_frame = cv2.resize(frame, (new_w, new_h))
+    else:
+        scale = 1.0
+        resized_frame = frame
+
     app = get_model()
-    faces = app.get(frame)
+    faces = app.get(resized_frame)
     results = []
+    
     for face in faces:
         x1, y1, x2, y2 = face.bbox.astype(int)
-        w, h = x2 - x1, y2 - y1
+        orig_x1 = int(x1 / scale)
+        orig_y1 = int(y1 / scale)
+        orig_x2 = int(x2 / scale)
+        orig_y2 = int(y2 / scale)
+        orig_w = orig_x2 - orig_x1
+        orig_h = orig_y2 - orig_y1
 
-        if w < MIN_FACE_SIZE or h < MIN_FACE_SIZE:
+        if orig_w < MIN_FACE_SIZE or orig_h < MIN_FACE_SIZE:
             continue
         if face.det_score < MIN_DET_SCORE:
             continue
@@ -52,7 +69,7 @@ def detect_and_embed(frame: np.ndarray) -> list[dict]:
         emb /= norm  # normalize về unit vector
 
         results.append({
-            "bbox":      {"x": int(x1), "y": int(y1), "w": int(w), "h": int(h)},
+            "bbox":      {"x": orig_x1, "y": orig_y1, "w": orig_w, "h": orig_h},
             "embedding": emb,
             "det_score": float(face.det_score),
         })

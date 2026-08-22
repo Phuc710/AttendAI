@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/enrollments", tags=["enrollments"])
 @router.post("/{user_id}", status_code=201)
 async def enroll(user_id: int, image: UploadFile = File(...)):
     with get_db() as conn:
-        user = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        user = conn.execute("SELECT id FROM users WHERE id=? AND is_deleted=0", (user_id,)).fetchone()
     if not user:
         raise HTTPException(404, "User not found")
 
@@ -33,6 +33,15 @@ async def enroll(user_id: int, image: UploadFile = File(...)):
         raise HTTPException(422, detail="Không phát hiện khuôn mặt trong ảnh. Hãy thử ảnh khác rõ mặt hơn.")
     if det_score < 0.3:
         raise HTTPException(422, detail=f"Chất lượng ảnh quá thấp ({det_score:.2f}). Cần ảnh sáng, rõ nét hơn.")
+
+    # Kiểm tra trùng mặt trên hệ thống
+    from services.match_service import match
+    matched_user, match_score = match(emb)
+    if matched_user and matched_user["user_id"] != user_id:
+        raise HTTPException(
+            422,
+            detail=f"Khuôn mặt này đã được đăng ký bởi nhân viên khác (Mã: {matched_user['user_code']}, Tên: {matched_user['full_name']})!"
+        )
 
     fname = f"{user_id}_{uuid.uuid4().hex[:8]}.jpg"
     path  = ENROLLED_DIR / fname

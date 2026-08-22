@@ -14,7 +14,6 @@ let _checkedUsers = new Set(); // Bộ nhớ tạm để chặn trùng lặp tro
 // ─── Bbox State ───────────────────────────────────────────
 let _currentBoxes = [];
 let _boxExpireAt = 0;
-let _resultUntil = 0; // Thời điểm hết hạn hiển thị kết quả (Xanh/Đỏ)
 const BOX_TTL = 1800;
 
 // ─── DOM Cache ────────────────────────────────────────────
@@ -35,8 +34,6 @@ const DOM = {
   sessionInfo: $('sessionInfo'),
   sessionLabel: $('sessionLabel'),
   sessionPill: $('sessionPill'),
-  // Toast
-  toast: $('toast'),
 };
 
 
@@ -90,51 +87,34 @@ function handleEvent(data) {
 
     // ── Điểm danh thành công ──
     case 'checkin_success':
-      // Chặn trùng lặp: Nếu đã điểm danh trong phiên này rồi thì không hiện drop-card nữa
-      if (_checkedUsers.has(data.user_id)) {
-        // Chỉ cập nhật khung xanh để biết vẫn nhận diện được, không chạy animation drop-card
-        setBoxes([{
-          bbox: data.bbox,
-          label: `✓ ${data.full_name}`,
-          color: '#22c55e',
-        }], true);
-        break;
+      if (!_checkedUsers.has(data.user_id)) {
+        _checkedUsers.add(data.user_id);
+        addCheckinItem(data);
       }
-
-      _checkedUsers.add(data.user_id);
-      setBoxes([{
-        bbox: data.bbox,
-        label: `${data.full_name}`,
-        color: '#22c55e',
-      }], true);
-      addCheckinItem(data);
-      showToast(`✅ ${data.full_name} — Điểm danh thành công`, 'success');
       break;
 
     // ── Đã điểm danh rồi ──
     case 'already_checked_in':
-      setBoxes([{
-        bbox: data.bbox,
-        label: data.full_name || 'Confirmed',
-        color: '#22c55e',
-      }], true);
+      // Nếu chưa có trong danh sách hiển thị bên phải, hãy thêm vào
+      if (!_checkedUsers.has(data.user_id)) {
+        _checkedUsers.add(data.user_id);
+        if (!data.checkin_time) {
+          data.checkin_time = new Date().toISOString();
+        }
+        addCheckinItem(data);
+      }
       break;
 
     // ── Khuôn mặt lạ ──
     case 'unknown_face':
-      setBoxes([{
-        bbox: data.bbox,
-        label: 'Unknown',
-        color: '#ef4444',
-      }], true);
       break;
 
     // ── Frame stats ──
     case 'frame_stats':
-      DOM.hudFaces.textContent = `👤 ${data.faces_detected} khuôn mặt`;
-      DOM.hudFps.textContent = `${data.fps} FPS`;
+      if (DOM.hudFaces) DOM.hudFaces.textContent = `👤 ${data.faces_detected} khuôn mặt`;
+      if (DOM.hudFps) DOM.hudFps.textContent = `${data.fps} FPS`;
       // Hide waiting overlay when frames are coming
-      if (!DOM.camWaiting.classList.contains('hidden')) {
+      if (DOM.camWaiting && !DOM.camWaiting.classList.contains('hidden')) {
         DOM.camWaiting.classList.add('hidden');
       }
       break;
@@ -146,16 +126,15 @@ function handleEvent(data) {
       break;
 
     case 'live_faces':
-      if (Date.now() < _resultUntil) break;
       if (data.faces && data.faces.length > 0) {
         setBoxes(data.faces.map(f => {
           let color = '#ffffff'; // Mặc định Trắng
-          if (f.name === 'Unknown') color = '#ef4444'; // Đỏ
-          else if (f.name) color = '#22c55e'; // Xanh lá
-          
+          if (f.name === 'Unknown') color = '#dc3545'; // Đỏ
+          else if (f.name) color = '#13ca75'; // Xanh lá
+
           return {
-            bbox: f.bbox, 
-            label: f.name || '', 
+            bbox: f.bbox,
+            label: f.name || '',
             color: color
           };
         }));
@@ -163,7 +142,7 @@ function handleEvent(data) {
         _currentBoxes = [];
       }
       break;
-      
+
     case 'session_start':
     case 'session_stop':
       _checkedUsers.clear(); // Reset chặn trùng lặp khi đổi phiên
@@ -190,12 +169,12 @@ function addCheckinItem(data) {
   const timeStr = data.check_in_time || data.checkin_time || new Date().toISOString();
   const time = new Date(timeStr).toLocaleTimeString('vi-VN', { hour12: false });
 
-  const confPct = Math.round((data.confidence || 0) * 100);
-
   // Avatar xử lý từ storage
   let avatarSrc = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(data.full_name) + '&background=random';
   if (data.snapshot_path) {
     avatarSrc = `/storage/snapshots/${data.snapshot_path.split(/[/\\]/).pop()}`;
+  } else if (data.face_image) {
+    avatarSrc = `/storage/enrolled/${data.face_image.split(/[/\\]/).pop()}`;
   }
 
   const item = document.createElement('div');
@@ -208,7 +187,6 @@ function addCheckinItem(data) {
     </div>
     <div class="att-meta">
       <div class="att-time">${time}</div>
-      <div class="att-conf">${confPct}%</div>
     </div>
   `;
 
@@ -220,15 +198,9 @@ function addCheckinItem(data) {
 //  BOUNDING BOX (Canvas)
 // ═══════════════════════════════════════════════════════════
 
-function setBoxes(boxes, isResult = false) {
-  if (isResult) {
-    _resultUntil = Date.now() + 1500; // Giữ màu kết quả trong 1.5 giây
-  } else {
-    // Nếu đang hiện kết quả, không nhận khung live
-    if (Date.now() < _resultUntil) return;
-  }
+function setBoxes(boxes) {
   _currentBoxes = boxes;
-  _boxExpireAt = Date.now() + (isResult ? 2000 : BOX_TTL);
+  _boxExpireAt = Date.now() + BOX_TTL;
 }
 
 const canvas = $('bboxCanvas');
@@ -254,35 +226,31 @@ function drawLoop() {
   }
 
   const img = DOM.camImg;
-  const scaleX = canvas.width / (img.naturalWidth || 640);
-  const scaleY = canvas.height / (img.naturalHeight || 480);
+  const containerWidth = canvas.width;
+  const containerHeight = canvas.height;
+  const naturalWidth = img.naturalWidth || 1280;
+  const naturalHeight = img.naturalHeight || 720;
+
+  // Calculate cover scaling factors and offsets
+  const scale = Math.max(containerWidth / naturalWidth, containerHeight / naturalHeight);
+  const offsetX = (containerWidth - (naturalWidth * scale)) / 2;
+  const offsetY = (containerHeight - (naturalHeight * scale)) / 2;
 
   for (const { bbox, label, color } of _currentBoxes) {
     if (!bbox) continue;
-    const x = bbox.x * scaleX;
-    const y = bbox.y * scaleY;
-    const w = bbox.w * scaleX;
-    const h = bbox.h * scaleY;
+    const x = bbox.x * scale + offsetX;
+    const y = bbox.y * scale + offsetY;
+    const w = bbox.w * scale;
+    const h = bbox.h * scale;
 
     // Box — solid, no glow
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.strokeRect(x, y, w, h);
 
-    // Corner marks
-    ctx.lineWidth = 3;
-    const cs = Math.min(w, h) * 0.18;
-    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([cx, cy], i) => {
-      ctx.beginPath();
-      const sx = (i % 2 === 0) ? cs : -cs;
-      const sy = (i < 2) ? cs : -cs;
-      ctx.moveTo(cx + sx, cy);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx, cy + sy);
-      ctx.stroke();
-    });
+
 
     // Label — solid background
     ctx.font = 'bold 13px Inter, sans-serif';
@@ -327,32 +295,19 @@ async function loadSession() {
     if (!r.ok) return;
     const s = await r.json();
     if (s && s.session_code) {
-      DOM.sessionInfo.textContent = `${s.class_name || ''} · ${s.session_code}`;
-      DOM.sessionLabel.textContent = s.class_name || s.session_code;
-      DOM.sessionPill.style.display = 'flex';
+      if (DOM.sessionInfo) DOM.sessionInfo.textContent = `${s.class_name || ''} · ${s.session_code}`;
+      if (DOM.sessionLabel) DOM.sessionLabel.textContent = s.class_name || s.session_code;
+      if (DOM.sessionPill) DOM.sessionPill.style.display = 'flex';
       loadAttendanceHistory(s.id); // Tải lịch sử khi có session
     } else {
-      DOM.sessionInfo.textContent = 'Chờ phiên học mới...';
-      DOM.sessionLabel.textContent = '—';
-      _checkedUsers.clear(); 
+      if (DOM.sessionInfo) DOM.sessionInfo.textContent = 'Chờ phiên học mới...';
+      if (DOM.sessionLabel) DOM.sessionLabel.textContent = '—';
+      _checkedUsers.clear();
     }
-  } catch {}
+  } catch { }
 }
 
 
-// ═══════════════════════════════════════════════════════════
-//  TOAST
-// ═══════════════════════════════════════════════════════════
-
-let toastTimer;
-function showToast(msg, type = '') {
-  DOM.toast.textContent = msg;
-  DOM.toast.className = `toast show ${type}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    DOM.toast.className = 'toast';
-  }, 3500);
-}
 
 
 // ═══════════════════════════════════════════════════════════
@@ -400,7 +355,7 @@ async function loadAttendanceHistory(sessionId) {
     DOM.attList.innerHTML = '';
     _checkedUsers.clear();
     checkinCount = 0;
-    
+
     if (d.logs && d.logs.length > 0) {
       // Đảo ngược để prepend vào đúng thứ tự (người mới nhất lên đầu)
       const logs = [...d.logs].reverse();
@@ -411,5 +366,11 @@ async function loadAttendanceHistory(sessionId) {
     } else {
       DOM.attList.innerHTML = '<div class="att-empty" id="attEmpty">Chưa có ai điểm danh</div>';
     }
-  } catch(e) { console.error("History error:", e); }
+  } catch (e) { console.error("History error:", e); }
 }
+
+// ═══════════════════════════════════════════════════════════
+//  END OF KIOSK CLIENT
+// ═══════════════════════════════════════════════════════════
+
+

@@ -48,10 +48,10 @@ _lock = threading.RLock()
 _global_index  = None      # faiss.Index hoặc None
 _global_meta: list[dict] = []  # [{user_id, user_code, full_name}]
 
-# Class index (per session)
-_class_index   = None
-_class_meta: list[dict] = []
-_class_id: int | None = None   # class_id đang được load
+# Group index (per session)
+_group_index   = None
+_group_meta: list[dict] = []
+_group_id: int | None = None   # group_id đang được load
 
 # Fallback numpy (nếu faiss không cài được)
 _np_embeddings: np.ndarray | None = None  # (N, 512)
@@ -105,8 +105,8 @@ def _load_embeddings_from_db(user_ids: list[int] | None = None) -> tuple[np.ndar
     with get_db() as conn:
         if user_ids is None:
             rows = conn.execute("""
-                SELECT fe.user_id, fe.embedding_json,
-                       u.user_code, u.full_name
+                SELECT fe.user_id, fe.embedding_json, fe.image_path,
+                       u.user_code, u.full_name, u.department
                 FROM face_embeddings fe
                 JOIN users u ON u.id = fe.user_id
                 ORDER BY fe.user_id, fe.created_at DESC
@@ -114,8 +114,8 @@ def _load_embeddings_from_db(user_ids: list[int] | None = None) -> tuple[np.ndar
         else:
             placeholders = ",".join("?" * len(user_ids))
             rows = conn.execute(f"""
-                SELECT fe.user_id, fe.embedding_json,
-                       u.user_code, u.full_name
+                SELECT fe.user_id, fe.embedding_json, fe.image_path,
+                       u.user_code, u.full_name, u.department
                 FROM face_embeddings fe
                 JOIN users u ON u.id = fe.user_id
                 WHERE fe.user_id IN ({placeholders})
@@ -139,6 +139,8 @@ def _load_embeddings_from_db(user_ids: list[int] | None = None) -> tuple[np.ndar
             "user_id":   uid,
             "user_code": row["user_code"],
             "full_name": row["full_name"],
+            "face_image": row["image_path"],
+            "department": row["department"],
         })
 
     if embeddings:
@@ -173,55 +175,59 @@ def reload_index():
     ms = (time.perf_counter() - t0) * 1000
     log.info(f"Global index reloaded: {len(meta)} users | FAISS={FAISS_OK} | {ms:.1f}ms")
 
+    # Nếu đang có group_id được load (phiên hoạt động), reload luôn group index
+    if _group_id is not None:
+        load_group_index(_group_id)
 
-# ─── Public: Load class index ─────────────────────────────
 
-def load_class_index(class_id: int):
+# ─── Public: Load group index ─────────────────────────────
+
+def load_group_index(group_id: int):
     """
-    Khi Kiosk bắt đầu session → gọi hàm này để load ĐÚNG danh sách lớp đó vào RAM.
-    Chỉ match những SV trong lớp → nhanh hơn, chính xác hơn.
+    Khi Kiosk bắt đầu session → gọi hàm này để load ĐÚNG danh sách nhóm đó vào RAM.
+    Chỉ match những người trong nhóm → nhanh hơn, chính xác hơn.
     """
-    global _class_index, _class_meta, _class_id
+    global _group_index, _group_meta, _group_id
     t0 = time.perf_counter()
 
-    # Lấy user_id trong lớp
+    # Lấy user_id trong nhóm
     with get_db() as conn:
         user_ids = [r[0] for r in conn.execute(
-            "SELECT user_id FROM class_students WHERE class_id=?", (class_id,)
+            "SELECT user_id FROM group_members WHERE group_id=?", (group_id,)
         ).fetchall()]
 
     if not user_ids:
-        log.warning(f"Class {class_id} has no students enrolled.")
+        log.warning(f"Group {group_id} has no members enrolled.")
         with _lock:
-            _class_index = None
-            _class_meta  = []
-            _class_id    = class_id
+            _group_index = None
+            _group_meta  = []
+            _group_id    = group_id
         return
 
     embeddings, meta = _load_embeddings_from_db(user_ids)
 
     with _lock:
-        _class_meta  = meta
-        _class_id    = class_id
+        _group_meta  = meta
+        _group_id    = group_id
         if FAISS_OK and len(embeddings) > 0:
-            # Lớp < 1000 SV → FlatIP (exact, ~0.1 ms)
-            _class_index = faiss.IndexFlatIP(DIM)
-            _class_index.add(embeddings)
+            # Nhóm < 1000 người → FlatIP (exact, ~0.1 ms)
+            _group_index = faiss.IndexFlatIP(DIM)
+            _group_index.add(embeddings)
         else:
-            _class_index = None
+            _group_index = None
 
     ms = (time.perf_counter() - t0) * 1000
-    log.info(f"Class index loaded: class_id={class_id} | {len(meta)} users | {ms:.1f}ms")
+    log.info(f"Group index loaded: group_id={group_id} | {len(meta)} users | {ms:.1f}ms")
 
 
-def clear_class_index():
-    """Xóa class index khi session kết thúc."""
-    global _class_index, _class_meta, _class_id
+def clear_group_index():
+    """Xóa group index khi session kết thúc."""
+    global _group_index, _group_meta, _group_id
     with _lock:
-        _class_index = None
-        _class_meta  = []
-        _class_id    = None
-    log.info("Class index cleared.")
+        _group_index = None
+        _group_meta  = []
+        _group_id    = None
+    log.info("Group index cleared.")
 
 
 # ─── Search helpers ───────────────────────────────────────
@@ -268,11 +274,11 @@ def match(query_emb: np.ndarray) -> tuple[dict | None, float]:
     query = _normalize(query_emb.astype(np.float32))
 
     with _lock:
-        # ── Ưu tiên 1: Class index ──
-        if _class_index is not None and _class_meta:
-            user, score = _search_faiss(_class_index, _class_meta, query)
+        # ── Ưu tiên 1: Group index ──
+        if _group_index is not None and _group_meta:
+            user, score = _search_faiss(_group_index, _group_meta, query)
             ms = (time.perf_counter() - t0) * 1000
-            log.debug(f"[CLASS-FAISS] match={user and user['user_code']} score={score:.3f} {ms:.1f}ms")
+            log.debug(f"[GROUP-FAISS] match={user and user['user_code']} score={score:.3f} {ms:.1f}ms")
             return user, score
 
         # ── Ưu tiên 2: Global FAISS ──
@@ -297,8 +303,8 @@ def index_info() -> dict:
             "faiss_available":    FAISS_OK,
             "global_vectors":     len(_global_meta),
             "global_index_type":  type(_global_index).__name__ if _global_index else "numpy_fallback",
-            "class_id_loaded":    _class_id,
-            "class_vectors":      len(_class_meta),
+            "group_id_loaded":    _group_id,
+            "group_vectors":      len(_group_meta),
         }
 
 def index_size() -> int:

@@ -59,27 +59,34 @@ class WSBroadcaster:
 
     # ─── Helpers ───────────────────────────────────────────────
 
-    def push_checkin_success(self, user: dict, confidence: float, bbox: dict, log_id: int, snapshot_path: str = ""):
+    def push_checkin_success(self, user: dict, confidence: float, bbox: dict, log_id: int, snapshot_path: str = "", arrival_status: str = "on_time"):
         self.push({
             "event":        "checkin_success",
             "user_id":      user.get("user_id"),
             "user_code":    user.get("user_code"),
             "student_code": user.get("user_code"),   # alias for kiosk.js compat
             "full_name":    user.get("full_name", "Unknown"),
+            "department":   user.get("department", "Nhân sự"),
             "confidence":   round(confidence, 4),
             "bbox":         bbox,
             "log_id":       log_id,
             "snapshot_path": snapshot_path,
-            "checkin_time": datetime.now().isoformat(),
+            "face_image":    user.get("face_image"),
+            "checkin_time": datetime.utcnow().isoformat() + "Z",
+            "arrival_status": arrival_status,
         })
 
-    def push_already_checked(self, student: dict, bbox: dict = None):
+    def push_already_checked(self, student: dict, bbox: dict = None, arrival_status: str = "on_time"):
         self.push({
             "event":      "already_checked_in",
             "user_id":    student.get("user_id"),
             "user_code":  student.get("user_code"),
             "full_name":  student.get("full_name", "Unknown"),
+            "department":  student.get("department", "Nhân sự"),
+            "face_image":  student.get("face_image"),
             "bbox":       bbox,
+            "checkin_time": datetime.utcnow().isoformat() + "Z",
+            "arrival_status": arrival_status,
         })
 
     def push_unknown(self, confidence: float, bbox: dict):

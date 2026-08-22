@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Đăng ký nhân sự</title>
+  <meta name="description" content="Đăng ký nhân sự mới bằng nhận diện khuôn mặt AI" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="register.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    /* CSS nhúng tránh cache trình duyệt cho spinner */
+    .spinner-scaling-dot {
+       --d: 24.6px;
+       width: 4.5px;
+       height: 4.5px;
+       border-radius: 50%;
+       color: #000000 !important;
+       box-shadow: calc(1*var(--d))      calc(0*var(--d))     0 0,
+              calc(0.707*var(--d))  calc(0.707*var(--d)) 0 1.1px,
+              calc(0*var(--d))      calc(1*var(--d))     0 2.2px,
+              calc(-0.707*var(--d)) calc(0.707*var(--d)) 0 3.4px,
+              calc(-1*var(--d))     calc(0*var(--d))     0 4.5px,
+              calc(-0.707*var(--d)) calc(-0.707*var(--d)) 0 5.6px,
+              calc(0*var(--d))      calc(-1*var(--d))    0 6.7px;
+       animation: spinner-scaling-dot-anim 1.0s infinite steps(8);
+       margin: 30px auto;
+       display: block;
+    }
+
+    @keyframes spinner-scaling-dot-anim {
+       100% {
+          transform: rotate(1turn);
+       }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══ TOPBAR ═══════════════════════════════════════════ -->
+  <header class="topbar" id="topbar">
+    <div class="topbar-left">
+      <div class="logo-title">AttendAI</div>
+    </div>
+
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-tab">
+        <svg class="nav-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="9"></rect>
+          <rect x="14" y="3" width="7" height="5"></rect>
+          <rect x="14" y="12" width="7" height="9"></rect>
+          <rect x="3" y="16" width="7" height="5"></rect>
+        </svg>
+        Dashboard
+      </a>
+      <a href="register.html" class="nav-tab">
+        <svg class="nav-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+          <line x1="20" y1="8" x2="20" y2="14"></line>
+          <line x1="23" y1="11" x2="17" y2="11"></line>
+        </svg>
+        Registry
+      </a>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <main class="registry-main-container">
+    <div class="container" id="mainContainer">
+
+      <!-- ─── SCREEN 1: FORM INPUT ───────────────────────── -->
+      <div class="card" id="formScreen">
+        <div class="title">Đăng ký nhân sự</div>
+        <div class="subtitle">
+          Nhập thông tin nhân sự để bắt đầu quét khuôn mặt AI.
+        </div>
+
+        <form id="kioskRegisterForm" class="registry-form-body">
+          <div class="reg-form-group">
+            <label for="regUserCode">Mã nhân viên</label>
+            <input type="text" id="regUserCode" placeholder="Ví dụ: EMP-001" required autocomplete="off" />
+            <div id="regUserCodeError" style="color: #ef4444; font-size: 0.85rem; margin-top: 4px; display: none; font-weight: 600;"></div>
+          </div>
+
+          <div class="reg-form-group">
+            <label for="regFullName">Họ và tên</label>
+            <input type="text" id="regFullName" placeholder="Ví dụ: Nguyễn Văn A" required autocomplete="off" />
+          </div>
+
+          <div class="reg-form-group">
+            <label for="regDepartment">Phòng ban</label>
+            <select id="regDepartment" required>
+              <option value="Cyber Security">Cyber Security</option>
+              <option value="Physical Intelligence">Physical Intelligence</option>
+              <option value="Logistics & Supply">Logistics & Supply</option>
+              <option value="Executive Board">Executive Board</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn">
+            BẮT ĐẦU ĐĂNG KÝ
+          </button>
+        </form>
+      </div>
+
+      <!-- ─── SCREEN 2: CAMERA CAPTURE ───────────────────── -->
+      <div class="card" id="captureScreen" style="display: none;">
+        <div class="title">Đăng ký khuôn mặt</div>
+        <div class="subtitle">
+          Hệ thống AI sẽ tự động phát hiện và quét khuôn mặt khi bạn đứng trước camera.
+        </div>
+
+        <div class="camera-box">
+          <img id="camImg" src="" alt="Camera Stream" />
+          <canvas id="bboxCanvas"
+            style="position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none;"></canvas>
+
+          <!-- Loading camera stream status overlay -->
+          <div class="camera-waiting" id="cameraWaiting">
+            <div class="cam-waiting-dots"><span></span><span></span><span></span></div>
+            <p style="margin-top: 8px; font-size: 0.88rem; font-weight: 600; color: #9CA3AF;">Đang tải camera...</p>
+          </div>
+        </div>
+
+        <div class="scan-status-text" id="scanStatusText"
+          style="text-align: center; font-size: 0.9rem; font-weight: 700; color: #666; margin-top: 10px; letter-spacing: 0.05em; text-transform: uppercase;">
+          Đang tìm khuôn mặt...
+        </div>
+
+        <div class="camera-text" id="cameraInstruction" style="margin-top: 15px;">
+          Nhìn thẳng vào camera và giữ nguyên khuôn mặt
+        </div>
+
+        <button class="btn" id="btnCapture" style="display: none;">
+          CHỤP ẢNH MẶT THẲNG
+        </button>
+      </div>
+
+      <!-- ─── SCREEN 4: PROCESSING/LOADING ───────────────── -->
+      <div class="card" id="processingScreen" style="display: none; text-align: center; padding: 60px 40px;">
+        <div class="loading-spinner-container" style="display: inline-block; margin-bottom: 24px;">
+          <div class="spinner-scaling-dot"></div>
+        </div>
+        <div class="title" id="processingTitle">Đang xử lý...</div>
+        <div class="subtitle" id="processingSubtitle" style="margin-bottom: 0;">
+          Đang đăng ký tài khoản nhân viên và lưu trữ khuôn mặt AI...
+        </div>
+      </div>
+
+      <!-- ─── SCREEN 3: SUCCESS RESULT ───────────────────── -->
+      <div class="card success-card" id="successScreen" style="display: none;">
+        <div class="header">
+          <div class="success-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="width: 48px; height: 48px; fill: rgb(0, 213, 98);">
+              <path d="M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256s256-114.6 256-256S397.4 0 256 0zM256 464c-114.9 0-208-93.1-208-208S141.1 48 256 48s208 93.1 208 208S370.9 464 256 464zM369 209L241 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L335 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/>
+            </svg>
+          </div>
+          <h1>Đăng ký thành công!</h1>
+          <p>Thông tin nhân sự đã được lưu và tích hợp vào hệ thống AI</p>
+        </div>
+
+        <div class="success-info-box">
+          <div class="success-info-columns">
+
+            <!-- LEFT COLUMN: Employee Info -->
+            <div class="success-info-col">
+              <div class="section-title">Thông tin nhân sự</div>
+              <div class="info-section">
+
+                <div class="info-row">
+                  <div class="info-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    Mã nhân viên
+                  </div>
+                  <div class="info-value" id="valUserCode">NV2025001</div>
+                </div>
+
+                <div class="info-row">
+                  <div class="info-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    Họ và tên
+                  </div>
+                  <div class="info-value" id="valFullName">Nguyễn Văn A</div>
+                </div>
+
+                <div class="info-row">
+                  <div class="info-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                    </svg>
+                    Phòng ban
+                  </div>
+                  <div class="info-value" id="valDept">Cyber Security</div>
+                </div>
+
+                <div class="info-row">
+                  <div class="info-label">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                      <line x1="16" y1="2" x2="16" y2="6"></line>
+                      <line x1="8" y1="2" x2="8" y2="6"></line>
+                      <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    Ngày đăng ký
+                  </div>
+                  <div class="info-value" id="valDate">16/05/2025 14:30</div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Face Images -->
+            <div class="success-info-col" style="align-items: center; justify-content: center;">
+              <div class="section-title" style="text-align: center; width: 100%;">Ảnh khuôn mặt đã đăng ký</div>
+              <div class="single-image-preview"
+                style="width: 200px; height: 200px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background-color: #f9f9f9; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+                <img id="imgStraight" src="" alt="Khuôn mặt đăng ký"
+                  style="width: 100%; height: 100%; object-fit: cover;" />
+              </div>
+              <!-- Hidden elements to keep register.js compatibility -->
+              <img id="imgLeft" src="" style="display: none;" />
+              <img id="imgRight" src="" style="display: none;" />
+            </div>
+
+          </div>
+        </div>
+
+        <button class="btn-submit" id="btnDoneReg">Hoàn thành</button>
+      </div>
+
+    </div>
+  </main>
+
+
+
+  <script src="header.js"></script>
+  <script src="register.js"></script>
+</body>
+
+</html>

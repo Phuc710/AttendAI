@@ -761,6 +761,19 @@ tbody tr:hover td {
   color: var(--danger);
 }
 
+.badge-primary {
+  background: var(--primary-soft);
+  border-color: rgba(29, 102, 208, 0.18);
+  color: var(--primary);
+}
+
+.badge-secondary {
+  background: var(--surface-muted);
+  border-color: var(--line-strong);
+  color: var(--muted);
+}
+
+
 .error-text {
   color: var(--danger);
 }

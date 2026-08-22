@@ -38,8 +38,8 @@ def reset_database():
         # Xóa theo thứ tự để tránh lỗi khóa ngoại
         conn.execute("DELETE FROM attendance_logs")
         conn.execute("DELETE FROM sessions")
-        conn.execute("DELETE FROM class_students")
-        conn.execute("DELETE FROM classes")
+        conn.execute("DELETE FROM group_members")
+        conn.execute("DELETE FROM groups")
         conn.execute("DELETE FROM face_embeddings")
         conn.execute("DELETE FROM users")
     return {"message": "Hệ thống đã được xóa sạch dữ liệu."}

@@ -9,7 +9,7 @@ import uuid
 import cv2
 import numpy as np
 from datetime import datetime
-from database import get_db
+from database import get_db, log_event
 from config import DUPLICATE_TIME_WINDOW, SAVE_SNAPSHOT, SNAPSHOTS_DIR
 
 log = logging.getLogger("attendance_service")
@@ -37,7 +37,7 @@ def _mark_recent(user_id: int):
 def _get_log_in_session(session_id: int, user_id: int) -> dict | None:
     with get_db() as conn:
         row = conn.execute("""
-            SELECT id FROM attendance_logs
+            SELECT id, arrival_status FROM attendance_logs
             WHERE session_id=? AND user_id=?
             LIMIT 1
         """, (session_id, user_id)).fetchone()
@@ -49,11 +49,11 @@ def _get_log_in_session(session_id: int, user_id: int) -> dict | None:
 def get_active_session() -> dict | None:
     with get_db() as conn:
         row = conn.execute("""
-            SELECT s.*, c.class_name, c.subject_code,
+            SELECT s.*, s.group_id as class_id, g.group_name as class_name, g.description as subject_code,
                    u.full_name as teacher_name
             FROM sessions s
-            JOIN classes c ON c.id = s.class_id
-            LEFT JOIN users u ON u.id = c.teacher_id
+            JOIN groups g ON g.id = s.group_id
+            LEFT JOIN users u ON u.id = g.manager_id
             WHERE s.status='active'
             ORDER BY s.started_at DESC LIMIT 1
         """).fetchone()
@@ -113,7 +113,8 @@ def handle(
         # Nếu đã có trong DB rồi thì KHÔNG lưu thêm, KHÔNG làm gì cả
         return {
             "status": "already_checked_in",
-            "log_id": existing_log["id"]
+            "log_id": existing_log["id"],
+            "arrival_status": existing_log.get("arrival_status", "on_time")
         }
 
     # ─── CHƯA CÓ TRONG DB -> GHI NHẬN CHECK-IN ───
@@ -133,6 +134,7 @@ def handle(
 
     _mark_recent(user_id)
     log.info(f"✓ checked_in: user={user_id} conf={confidence:.3f} arrival={arrival}")
+    log_event("checkin", f"Nhân viên ID {user_id} check-in thành công", f"Độ tự tin: {confidence:.2f}, Trạng thái: {arrival}")
     return {
         "status":         "checked_in",
         "message":        "Check-in thành công",
@@ -159,4 +161,5 @@ def manual_checkin(user_id: int, session_id: int) -> dict:
         log_id = cur.lastrowid
 
     _mark_recent(user_id)
+    log_event("checkin", f"Điểm danh thủ công nhân viên ID {user_id}", f"Session ID: {session_id}, Trạng thái: {arrival}")
     return {"status": "checked_in", "log_id": log_id, "arrival_status": arrival}

@@ -59,7 +59,7 @@ def health():
         "embeddings_loaded": ix["global_vectors"],
         "faiss_available":   ix["faiss_available"],
         "index_type":        ix["global_index_type"],
-        "class_id_loaded":   ix["class_id_loaded"],
-        "class_vectors":     ix["class_vectors"],
+        "class_id_loaded":   ix["group_id_loaded"],
+        "class_vectors":     ix["group_vectors"],
         "active_session":    get_active_session() is not None,
     }

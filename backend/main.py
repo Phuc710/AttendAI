@@ -43,8 +43,13 @@ async def lifespan(app: FastAPI):
     # Nếu server khởi động lại khi session đang active → load lại class index
     active = get_active_session()
     if active:
-        match_service.load_class_index(active["class_id"])
-        log.info(f"Auto-loaded class index: class_id={active['class_id']}")
+        match_service.load_group_index(active["class_id"])
+        log.info(f"Auto-loaded group index: group_id={active['class_id']}")
+
+    # Tự động bật camera khi khởi động server
+    from services.camera_service import start as start_camera
+    ok, msg = start_camera()
+    log.info(f"Auto-starting camera: {msg} (OK={ok})")
 
     log.info("=== System READY ===")
     yield

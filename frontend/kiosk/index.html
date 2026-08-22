@@ -1,73 +1,95 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Điểm Danh</title>
-  <meta name="description" content="Hệ thống điểm danh tự động bằng nhận diện khuôn mặt AI"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="kiosk.css"/>
+  <meta name="description" content="Hệ thống điểm danh tự động bằng nhận diện khuôn mặt AI" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="header.css" />
+  <link rel="stylesheet" href="kiosk.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
+
 <body>
 
-<!-- ═══ TOPBAR ═══════════════════════════════════════════ -->
-<header class="topbar" id="topbar">
-  <div class="topbar-left">
-    <div>
+  <!-- ═══ TOPBAR ═══════════════════════════════════════════ -->
+  <header class="topbar" id="topbar">
+    <div class="topbar-left">
       <div class="logo-title">AttendAI</div>
     </div>
-  </div>
-  <div class="topbar-right">
-    <div class="clock" id="clock">--:--:--</div>
-  </div>
-</header>
 
-<!-- ═══ MAIN LAYOUT ═════════════════════════════════════ -->
-<main class="kiosk-main">
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-tab">
+        <svg class="nav-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="9"></rect>
+          <rect x="14" y="3" width="7" height="5"></rect>
+          <rect x="14" y="12" width="7" height="9"></rect>
+          <rect x="3" y="16" width="7" height="5"></rect>
+        </svg>
+        Dashboard
+      </a>
+      <a href="register.html" class="nav-tab">
+        <svg class="nav-icon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="8.5" cy="7" r="4"></circle>
+          <line x1="20" y1="8" x2="20" y2="14"></line>
+          <line x1="23" y1="11" x2="17" y2="11"></line>
+        </svg>
+        Registry
+      </a>
+    </nav>
 
-  <!-- ── Camera Panel (LEFT) ─────────────────────────── -->
-  <section class="cam-section">
-    <div class="cam-frame" id="camFrame">
-      <img id="camImg" src="/api/camera/stream" alt="Camera Stream"/>
-      <canvas id="bboxCanvas"></canvas>
+    <div class="topbar-right">
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
 
-      <!-- Overlay: waiting -->
-      <div class="cam-waiting" id="camWaiting">
-        <div class="cam-waiting-icon">📷</div>
-        <p style="font-weight:900; font-size:1.5rem; letter-spacing: 2px;">CAMERA OFFLINE</p>
-        <div class="cam-waiting-dots"><span></span><span></span><span></span></div>
+  <!-- ═══ MAIN LAYOUT ═════════════════════════════════════ -->
+  <main class="kiosk-main" id="tab-dashboard">
+
+    <!-- ── Camera Panel (LEFT) ─────────────────────────── -->
+    <section class="cam-section">
+      <div class="cam-frame" id="camFrame">
+        <img id="camImg" src="/api/camera/stream" alt="Camera Stream" />
+        <canvas id="bboxCanvas"></canvas>
+
+        <!-- Overlay: waiting -->
+        <div class="cam-waiting" id="camWaiting">
+          <div class="cam-waiting-icon">📷</div>
+          <p style="font-weight:900; font-size:1.5rem; letter-spacing: 2px;">CAMERA OFFLINE</p>
+          <div class="cam-waiting-dots"><span></span><span></span><span></span></div>
+        </div>
+
       </div>
+    </section>
 
-    </div>
-  </section>
+    <!-- ── Attendance Panel (RIGHT) ────────────────────── -->
+    <aside class="att-panel">
+      <!-- Divider -->
+      <div class="att-divider">
+        <span class="att-divider-line"></span>
+        <span class="att-divider-text">Lịch sử hôm nay</span>
+        <span class="att-divider-line"></span>
+      </div>
+      <!-- Check-in list -->
+      <div class="att-list-header">
+        <span>Đã điểm danh</span>
+        <span class="att-count" id="attCount">0</span>
+      </div>
+      <div class="att-list" id="attList">
+        <div class="att-empty" id="attEmpty">Chưa có ai điểm danh</div>
+      </div>
+    </aside>
 
-  <!-- ── Attendance Panel (RIGHT) ────────────────────── -->
-  <aside class="att-panel">
+  </main>
 
 
 
-    <!-- Divider -->
-    <div class="att-divider">
-      <span class="att-divider-line"></span>
-      <span class="att-divider-text">Lịch sử hôm nay</span>
-      <span class="att-divider-line"></span>
-    </div>
-
-    <!-- Check-in list -->
-    <div class="att-list-header">
-      <span>Đã điểm danh</span>
-      <span class="att-count" id="attCount">0</span>
-    </div>
-    <div class="att-list" id="attList">
-      <div class="att-empty" id="attEmpty">Chưa có ai điểm danh</div>
-    </div>
-  </aside>
-
-</main>
-
-<!-- ═══ TOAST ═══════════════════════════════════════════ -->
-<div class="toast" id="toast"></div>
-
-<script src="kiosk.js"></script>
+  <script src="header.js"></script>
+  <script src="kiosk.js"></script>
 </body>
+
 </html>
